@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Passported</string>
+    <string name="passport_photo">Passport Photo</string>
+    <string name="aadhar_card">Aadhar Card</string>
+    <string name="settings">Settings</string>
+    <string name="select_language">Select Language</string>
+    <string name="english">English</string>
+    <string name="hindi">Hindi</string>
+    <string name="current_language">Current Language</string>
+    <string name="select_aadhar_card_images">Select Aadhar Card Images</string>
+    <string name="select_front_image">Select Front Image</string>
+    <string name="select_back_image">Select Back Image</string>
+    <string name="select_passport_photo_size">Select Passport Photo Size</string>
+    <string name="eight_large_photo">8x Large Passport</string>
+    <string name="twelve_small_passport">12x Small Passport</string>
+    <string name="save_image">Save Image</string>
+    <string name="share_image">Share Image</string>
+    <string name="select_image">Select Image</string>
+    <string name="back">Back</string>
+    <string name="image_saved_to_file">Image Saved To File</string>
+    <string name="swipe_hint" translatable="false">Swipe</string>
+</resources>
