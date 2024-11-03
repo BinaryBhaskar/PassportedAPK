@@ -18,5 +18,7 @@
     <string name="select_image">Select Image</string>
     <string name="back">Back</string>
     <string name="image_saved_to_file">Image Saved To File</string>
-    <string name="swipe_hint" translatable="false">Swipe</string>
+    <string name="collage">Collage</string>
+    <string name="select_images">Select Images</string>
+    <string name="create_collage" >Create Collage</string>
 </resources>

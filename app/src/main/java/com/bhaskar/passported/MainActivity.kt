@@ -1,104 +1,110 @@
+@file:Suppress("DEPRECATION")
+
 package com.bhaskar.passported
 
 // Android Framework
-import android.app.Activity // Base class for activities
-import android.app.Application // Base class for application
-import android.content.ContentResolver // Content Resolver for data access
-import android.content.ContentValues // Values for content provider
-import android.content.Context // Context for app resources
-import android.content.Intent // Intent for launching activities
-import android.content.SharedPreferences // Preferences storage
-import android.graphics.Bitmap // Bitmap image representation
-import android.graphics.Canvas // Canvas for drawing
-import android.graphics.Color.WHITE // White color constant
-import android.graphics.Matrix // Matrix for transformations
-import android.graphics.RectF // Rectangular area
-import android.media.MediaScannerConnection // Media scanner connection
-import android.net.Uri // URI representation
-import android.os.Bundle // Bundle for activity state
-import android.os.Environment // Environment for storage paths
-import android.provider.MediaStore // MediaStore for media access
-import android.widget.Toast // Toast messages
 
 // Jetpack Compose
-import androidx.activity.ComponentActivity // Base activity for Compose
-import androidx.activity.compose.ManagedActivityResultLauncher // Activity result launcher
-import androidx.activity.compose.rememberLauncherForActivityResult // Remember launcher for result
-import androidx.activity.compose.setContent // Set content for activity
-import androidx.activity.result.contract.ActivityResultContracts // Contracts for result handling
-import androidx.compose.foundation.Image // Image component
-import androidx.compose.foundation.background // Background modifier
-import androidx.compose.foundation.layout.Arrangement // Arrangement for layout
-import androidx.compose.foundation.layout.Box // Box layout
-import androidx.compose.foundation.layout.Column // Column layout
-import androidx.compose.foundation.layout.Row // Row layout
-import androidx.compose.foundation.layout.Spacer // Spacer for layout
-import androidx.compose.foundation.layout.fillMaxSize // Fill maximum size
-import androidx.compose.foundation.layout.fillMaxWidth // Fill maximum width
-import androidx.compose.foundation.layout.height // Height modifier
-import androidx.compose.foundation.layout.padding // Padding modifier
-import androidx.compose.foundation.layout.width // Width modifier
-import androidx.compose.foundation.rememberScrollState // Scroll state
-import androidx.compose.foundation.verticalScroll // Vertical scrolling modifier
-import androidx.compose.material.icons.Icons // Material icons
-import androidx.compose.material.icons.filled.Face // Face icon
-import androidx.compose.material.icons.filled.Person // Person icon
-import androidx.compose.material.icons.filled.Settings // Settings icon
-import androidx.compose.material3.Button // Button component
-import androidx.compose.material3.ButtonDefaults // Default button styles
-import androidx.compose.material3.Icon // Icon component
-import androidx.compose.material3.MaterialTheme // Material theme
-import androidx.compose.material3.MaterialTheme.colorScheme // Color scheme of Material theme
-import androidx.compose.material3.NavigationBar // Navigation bar component
-import androidx.compose.material3.NavigationBarItem // Navigation bar item component
-import androidx.compose.material3.Text // Text component
-import androidx.compose.runtime.Composable // Composable function annotation
-import androidx.compose.runtime.collectAsState // Collect state from flow
-import androidx.compose.runtime.getValue // Get value from state
-import androidx.compose.runtime.mutableStateOf // Mutable state holder
-import androidx.compose.runtime.remember // Remember state
-import androidx.compose.runtime.setValue // Set value in state
-import androidx.compose.ui.Alignment // Alignment options
-import androidx.compose.ui.Modifier // Modifier for UI components
-import androidx.compose.ui.graphics.Color // Color representation
-import androidx.compose.ui.graphics.asImageBitmap // Convert to ImageBitmap
-import androidx.compose.ui.graphics.toArgb // Convert color to ARGB
-import androidx.compose.ui.platform.LocalContext // Current context
-import androidx.compose.ui.res.painterResource // Resource painter
-import androidx.compose.ui.res.stringResource // String resource access
-import androidx.compose.ui.unit.dp // Density-independent pixels
-import androidx.compose.ui.unit.sp // Scaled pixels
-import androidx.core.content.FileProvider // File provider support
-import androidx.lifecycle.AndroidViewModel // ViewModel with Android context
-import androidx.lifecycle.ViewModel // Base class for ViewModel
-import androidx.lifecycle.ViewModelProvider // ViewModel provider
-import androidx.lifecycle.viewModelScope // ViewModel scope for coroutines
-import androidx.lifecycle.viewmodel.compose.viewModel // ViewModel for Compose
-import androidx.navigation.NavHostController // Navigation host controller
-import androidx.navigation.compose.NavHost // Navigation host composable
-import androidx.navigation.compose.composable // Composable for navigation
-import androidx.navigation.compose.currentBackStackEntryAsState // Get current back stack entry
-import androidx.navigation.compose.rememberNavController // Remember navigation controller
 
 // UI Theme
-import com.bhaskar.passported.ui.theme.PassportedTheme // Theme for the app
 
 // Image Cropping Library
-import com.yalantis.ucrop.UCrop // Image cropping functionality
 
 // Kotlin Coroutines
-import kotlinx.coroutines.channels.awaitClose // Close channel on completion
-import kotlinx.coroutines.flow.Flow // Flow interface for streams
-import kotlinx.coroutines.flow.SharingStarted // Sharing started options
-import kotlinx.coroutines.flow.StateFlow // StateFlow interface for state management
-import kotlinx.coroutines.flow.callbackFlow // Create a callback flow
-import kotlinx.coroutines.flow.stateIn // Convert flow to state
-import java.io.ByteArrayOutputStream // Byte array output stream
-import java.io.File // File representation
-import java.io.FileOutputStream // File output stream
-import java.io.IOException // Exception handling
-import java.io.OutputStream // Output stream representation
-import java.util.Locale // Locale support
+import android.app.Activity
+import android.app.Application
+import android.content.ContentResolver
+import android.content.ContentValues
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color.WHITE
+import android.graphics.Matrix
+import android.graphics.RectF
+import android.media.MediaScannerConnection
+import android.net.Uri
+import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.bhaskar.passported.ui.theme.PassportedTheme
+import com.yalantis.ucrop.UCrop
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.stateIn
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.OutputStream
+import java.util.Locale
 
 // -------------------------------------------------- Classes --------------------------------------------------
 // Language Manager
@@ -235,6 +241,7 @@ fun MainScreen(currentLanguage: String, onLanguageSelected: (String) -> Unit) {
             NavHost(navController, startDestination = "passport_photo_mode") {
                 composable("passport_photo_mode") { PassportPhotoHomeScreen() }
                 composable("aadhar_card_mode") { AadharCardHomeScreen() }
+                composable("collage") { CollageScreen() }
                 composable("user_settings") {
                     SettingsScreen(
                         selectedLanguage = selectedLanguage,
@@ -302,6 +309,20 @@ fun AppNavigationBar(navController: NavHostController) {
             }
         )
         NavigationBarItem(
+            label = { Text(stringResource(R.string.collage)) },
+            icon = { Icon(imageVector = Icons.Default.AccountBox, contentDescription = null) },
+            selected = currentRoute == "collage",  // Check if the route matches
+            onClick = {
+                if (currentRoute != "collage") {  // Prevent navigation if already on the same screen
+                    navController.navigate("collage") {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            }
+        )
+        NavigationBarItem(
             label = { Text(stringResource(R.string.settings)) },
             icon = { Icon(imageVector = Icons.Default.Settings, contentDescription = null) },
             selected = currentRoute == "user_settings",  // Check if the route matches
@@ -325,7 +346,7 @@ fun SettingsScreen(selectedLanguage: String, onLanguageChange: (String) -> Unit,
         modifier = Modifier
             .fillMaxSize()
             .padding(40.dp),
-        verticalArrangement = Arrangement.Top,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = stringResource(
@@ -402,7 +423,7 @@ fun PassportPhotoHomeScreen() {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.Top,
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
@@ -845,7 +866,7 @@ fun AadharCardHomeScreen() {
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Top,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
@@ -997,7 +1018,6 @@ fun saveAadharImage(context: Context, combinedBitmap: Bitmap) {
     try {
         val outputStream = FileOutputStream(file)
         combinedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        outputStream.let { it1 -> combinedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, it1) }
         outputStream.close()
 
         // Notify the gallery about the new file so it is immediately available to the user
@@ -1039,6 +1059,181 @@ fun shareAadharImage(context: Context, combinedBitmap: Bitmap) {
         e.printStackTrace()
         Toast.makeText(context, "Failed to share image: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
     }
+}
+
+
+// -------------------------------------------------- Collage Tools --------------------------------------------------
+// Collage Screen
+@Composable
+fun CollageScreen() {
+    val context = LocalContext.current
+    val images = remember { mutableStateListOf<Bitmap>() } // List to store selected images
+    var collageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val scaleFactors = remember { mutableStateListOf<Float>() }
+
+    // Image Picker
+    val pickImagesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            images.clear()
+            scaleFactors.clear()
+            uris.take(7).forEach { uri ->
+                val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                images.add(bitmap)
+                scaleFactors.add(1f) // Initialize scale factor for each image
+            }
+            collageBitmap = generateCollageBitmap(images, scaleFactors) // Initial collage generation
+        }
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = stringResource(id=R.string.create_collage),
+            style = MaterialTheme.typography.headlineMedium,
+            color = colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 20.dp)
+        )
+
+        Button(onClick = { pickImagesLauncher.launch("image/*") }) {
+            Text(stringResource(id=R.string.select_images))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        images.forEachIndexed { index, image ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = "Selected Image Thumbnail",
+                    modifier = Modifier.size(50.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Slider for each image to control size
+                Slider(
+                    value = scaleFactors[index],
+                    onValueChange = { newScale ->
+                        scaleFactors[index] = newScale
+                        adjustOtherScales(scaleFactors, index, newScale) // Adjust other sliders
+                        collageBitmap = generateCollageBitmap(images, scaleFactors) // Update collage dynamically
+                    },
+                    valueRange = calculateScaleRange(images.size, image), // Calculate min-max based on number of images
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Display generated collage
+        collageBitmap?.let { bitmap ->
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Collage",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Save and Share buttons for the collage
+        collageBitmap?.let { bitmap ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = {
+                    saveImage(context, bitmap)
+                    Toast.makeText(context, "Image Saved", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text(stringResource(id=R.string.save_image))
+                }
+
+                Button(onClick = {
+                    shareImage(context, bitmap)
+                    Toast.makeText(context, "Sharing Image", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text(stringResource(id=R.string.share_image))
+                }
+            }
+        }
+    }
+}
+
+// Min-Max Scale Calculator
+fun calculateScaleRange(imageCount: Int, image: Bitmap): ClosedFloatingPointRange<Float> {
+    val minScale = maxOf(100f / image.width, 100f / image.height) // Ensure minimum 100px for one dimension
+    val maxScale = when (imageCount) {
+        1 -> 2f
+        2 -> 1.5f
+        in 3 .. 4 -> 1.2f
+        else -> 1f
+    }
+    return minScale..maxScale
+}
+
+// Dynamic Scale Adjuster
+fun adjustOtherScales(scaleFactors: MutableList<Float>, index: Int, newScale: Float) {
+    val maxTotalScale = 3f // Set a max cumulative scale based on layout requirements
+
+    // Adjust all other scale factors to fit within maxTotalScale
+    val totalScale = scaleFactors.sum() - scaleFactors[index] + newScale
+    if (totalScale > maxTotalScale) {
+        val excess = totalScale - maxTotalScale
+        for (i in scaleFactors.indices) {
+            if (i != index) {
+                scaleFactors[i] -= (excess / (scaleFactors.size - 1)).coerceAtLeast(0f)
+            }
+        }
+    }
+}
+
+// Collage Bitmap Generator
+fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitmap {
+    val a4Width = 2480 // Width in pixels for A4 (300 DPI)
+    val a4Height = 3508 // Height in pixels for A4 (300 DPI)
+
+    val collageBitmap = Bitmap.createBitmap(a4Width, a4Height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(collageBitmap)
+    canvas.drawColor(WHITE) // Set background color
+
+    val margin = 50f
+    var currentX = margin
+    var currentY = margin
+
+    images.forEachIndexed { index, image ->
+        val scaleFactor = scaleFactors[index]
+        val scaledWidth = (image.width * scaleFactor).toInt().coerceAtLeast(100)
+        val scaledHeight = (image.height * scaleFactor).toInt().coerceAtLeast(100)
+
+        val resizedImage = Bitmap.createScaledBitmap(image, scaledWidth, scaledHeight, true)
+        canvas.drawBitmap(resizedImage, currentX, currentY, null)
+
+        currentX += scaledWidth + margin
+        if (currentX + scaledWidth > a4Width) {
+            currentX = margin
+            currentY += scaledHeight + margin
+        }
+    }
+
+    return collageBitmap
 }
 
 // -------------------------------------------------- End of Code --------------------------------------------------
