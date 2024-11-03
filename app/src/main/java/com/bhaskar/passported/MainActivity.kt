@@ -1179,19 +1179,26 @@ fun CollageScreen() {
 
 // Min-Max Scale Calculator
 fun calculateScaleRange(imageCount: Int, image: Bitmap): ClosedFloatingPointRange<Float> {
-    val minScale = maxOf(100f / image.width, 100f / image.height) // Ensure minimum 100px for one dimension
-    val maxScale = when (imageCount) {
-        1 -> 2f
-        2 -> 1.5f
-        in 3 .. 4 -> 1.2f
-        else -> 1f
-    }
+    // Minimum scale to ensure at least 100 pixels in one dimension
+    val minScale = maxOf(100f / image.width, 100f / image.height)
+
+    // Maximum scale to ensure no dimension exceeds 2000 pixels
+    val maxScaleForWidth = 2000f / image.width
+    val maxScaleForHeight = 2000f / image.height
+    val maxScale = minOf(maxScaleForWidth, maxScaleForHeight).coerceAtMost(
+        when (imageCount) {
+            1 -> 2f
+            2 -> 1.5f
+            in 3..4 -> 1.2f
+            else -> 1f
+        }
+    )
     return minScale..maxScale
 }
 
 // Dynamic Scale Adjuster
 fun adjustOtherScales(scaleFactors: MutableList<Float>, index: Int, newScale: Float) {
-    val maxTotalScale = 3f // Set a max cumulative scale based on layout requirements
+    val maxTotalScale = 7f // Set a max cumulative scale based on layout requirements
 
     // Adjust all other scale factors to fit within maxTotalScale
     val totalScale = scaleFactors.sum() - scaleFactors[index] + newScale
@@ -1205,7 +1212,7 @@ fun adjustOtherScales(scaleFactors: MutableList<Float>, index: Int, newScale: Fl
     }
 }
 
-// Collage Bitmap Generator
+// Bitmap Generator
 fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitmap {
     val a4Width = 2480 // Width in pixels for A4 (300 DPI)
     val a4Height = 3508 // Height in pixels for A4 (300 DPI)
@@ -1214,23 +1221,33 @@ fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitm
     val canvas = Canvas(collageBitmap)
     canvas.drawColor(WHITE) // Set background color
 
-    val margin = 50f
-    var currentX = margin
+    val margin = 70f
     var currentY = margin
+    var currentX: Float = margin
+    var rowHeight = 0 // Keep track of the tallest image in the current row
 
     images.forEachIndexed { index, image ->
         val scaleFactor = scaleFactors[index]
         val scaledWidth = (image.width * scaleFactor).toInt().coerceAtLeast(100)
         val scaledHeight = (image.height * scaleFactor).toInt().coerceAtLeast(100)
 
+        // Find the best position for the image
+        if (currentX + scaledWidth > a4Width) {
+            // Move to the next row if there is not enough space in the current row
+            currentY += rowHeight + margin
+            currentX = margin // Reset X position
+            rowHeight = 0 // Reset row height
+        } else {
+            currentX = if (currentX == margin) margin else currentX + margin // Start at margin or add margin
+        }
+
+        // Draw the image on the canvas
         val resizedImage = Bitmap.createScaledBitmap(image, scaledWidth, scaledHeight, true)
         canvas.drawBitmap(resizedImage, currentX, currentY, null)
 
-        currentX += scaledWidth + margin
-        if (currentX + scaledWidth > a4Width) {
-            currentX = margin
-            currentY += scaledHeight + margin
-        }
+        // Update currentX and rowHeight for the next image
+        currentX += scaledWidth
+        rowHeight = maxOf(rowHeight, scaledHeight) // Update row height
     }
 
     return collageBitmap
