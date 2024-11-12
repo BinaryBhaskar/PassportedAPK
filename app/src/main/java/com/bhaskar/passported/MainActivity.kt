@@ -2,15 +2,6 @@
 
 package com.bhaskar.passported
 
-// Android Framework
-
-// Jetpack Compose
-
-// UI Theme
-
-// Image Cropping Library
-
-// Kotlin Coroutines
 import android.app.Activity
 import android.app.Application
 import android.content.ContentResolver
@@ -52,16 +43,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -78,6 +74,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -91,7 +88,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.bhaskar.passported.ui.theme.PassportedTheme
 import com.yalantis.ucrop.UCrop
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -185,14 +181,12 @@ class MainActivity : ComponentActivity() {
         setAppLocale(initialLanguage) // Set the locale based on initial language
 
         setContent {
-            PassportedTheme {
-                window.statusBarColor = colorScheme.background.toArgb()
-                MainScreen(currentLanguage = initialLanguage) { newLanguage ->
-                    // Update the app's language preference
-                    if (newLanguage != initialLanguage) {
-                        languageManager.setLanguage(newLanguage)
-                        setAppLocale(newLanguage) // Update the locale for the app
-                    }
+            window.statusBarColor = colorScheme.background.toArgb()
+            MainScreen(currentLanguage = initialLanguage) { newLanguage ->
+                // Update the app's language preference
+                if (newLanguage != initialLanguage) {
+                    languageManager.setLanguage(newLanguage)
+                    setAppLocale(newLanguage) // Update the locale for the app
                 }
             }
         }
@@ -241,7 +235,8 @@ fun MainScreen(currentLanguage: String, onLanguageSelected: (String) -> Unit) {
             NavHost(navController, startDestination = "passport_photo_mode") {
                 composable("passport_photo_mode") { PassportPhotoHomeScreen() }
                 composable("aadhar_card_mode") { AadharCardHomeScreen() }
-                composable("collage") { CollageScreen() }
+                composable("collage_mode") { CollageScreen() }
+                composable("khasra_map_mode") { KhasraMapScreen() }
                 composable("user_settings") {
                     SettingsScreen(
                         selectedLanguage = selectedLanguage,
@@ -272,68 +267,114 @@ fun TopBanner() {
     )
 }
 
-// Navigation Bar
+//Navigation Bar
 @Composable
 fun AppNavigationBar(navController: NavHostController) {
     // Get the current back stack entry and route
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
-    NavigationBar {
-        NavigationBarItem(
-            label = { Text(stringResource(R.string.passport_photo)) },
-            icon = { Icon(Icons.Default.Face, contentDescription = null) },
-            selected = currentRoute == "passport_photo_mode",  // Check if the route matches
+    // Make the NavigationBar scrollable
+    ScrollableTabRow(
+        edgePadding = 0.dp,
+        selectedTabIndex = when (currentRoute) {
+            "passport_photo_mode" -> 0
+            "aadhar_card_mode" -> 1
+            "collage_mode" -> 2
+            "khasra_map_mode" -> 3
+            "user_settings" -> 4
+            else -> 0 // Default case if no route matches
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Tab(
+            selected = currentRoute == "passport_photo_mode",
             onClick = {
-                if (currentRoute != "passport_photo_mode") {  // Prevent navigation if already on the same screen
+                if (currentRoute != "passport_photo_mode") {
                     navController.navigate("passport_photo_mode") {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
+            },
+            text = {
+                Text(stringResource(R.string.passport_photo))
+            },
+            icon = {
+                Icon(Icons.Default.Face, contentDescription = null)
             }
         )
-        NavigationBarItem(
-            label = { Text(stringResource(R.string.aadhar_card)) },
-            icon = { Icon(Icons.Default.Person, contentDescription = null) },
-            selected = currentRoute == "aadhar_card_mode",  // Check if the route matches
+        Tab(
+            selected = currentRoute == "aadhar_card_mode",
             onClick = {
-                if (currentRoute != "aadhar_card_mode") {  // Prevent navigation if already on the same screen
+                if (currentRoute != "aadhar_card_mode") {
                     navController.navigate("aadhar_card_mode") {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
+            },
+            text = {
+                Text(stringResource(R.string.aadhar_card))
+            },
+            icon = {
+                Icon(Icons.Default.Person, contentDescription = null)
             }
         )
-        NavigationBarItem(
-            label = { Text(stringResource(R.string.collage)) },
-            icon = { Icon(imageVector = Icons.Default.AccountBox, contentDescription = null) },
-            selected = currentRoute == "collage",  // Check if the route matches
+        Tab(
+            selected = currentRoute == "collage_mode",
             onClick = {
-                if (currentRoute != "collage") {  // Prevent navigation if already on the same screen
-                    navController.navigate("collage") {
+                if (currentRoute != "collage_mode") {
+                    navController.navigate("collage_mode") {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
+            },
+            text = {
+                Text(stringResource(R.string.collage))
+            },
+            icon = {
+                Icon(imageVector = Icons.Default.AccountBox, contentDescription = null)
             }
         )
-        NavigationBarItem(
-            label = { Text(stringResource(R.string.settings)) },
-            icon = { Icon(imageVector = Icons.Default.Settings, contentDescription = null) },
-            selected = currentRoute == "user_settings",  // Check if the route matches
+        Tab(
+            selected = currentRoute == "khasra_map_mode",
             onClick = {
-                if (currentRoute != "user_settings") {  // Prevent navigation if already on the same screen
+                if (currentRoute != "khasra_map_mode") {
+                    navController.navigate("khasra_map_mode") {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            },
+            text = {
+                Text(stringResource(R.string.khasra_map))
+            },
+            icon = {
+                Icon(imageVector = Icons.Default.Favorite, contentDescription = null)
+            }
+        )
+        Tab(
+            selected = currentRoute == "user_settings",
+            onClick = {
+                if (currentRoute != "user_settings") {
                     navController.navigate("user_settings") {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
+            },
+            text = {
+                Text(stringResource(R.string.settings))
+            },
+            icon = {
+                Icon(imageVector = Icons.Default.Settings, contentDescription = null)
             }
         )
     }
@@ -349,10 +390,13 @@ fun SettingsScreen(selectedLanguage: String, onLanguageChange: (String) -> Unit,
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = stringResource(
-            id = R.string.settings),
+        Text(
+            text = stringResource(
+                id = R.string.settings
+            ),
             fontSize = 32.sp,
-            color = colorScheme.onBackground,)
+            color = colorScheme.onBackground,
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -1251,6 +1295,120 @@ fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitm
     }
 
     return collageBitmap
+}
+
+// -------------------------------------------------- Khasra Map Tools --------------------------------------------------
+@Composable
+fun KhasraMapScreen() {
+    var selectedGiscode by remember { mutableStateOf("690802.084") }
+    var plotNumber by remember { mutableStateOf(TextFieldValue("")) }
+
+    val giscodeList = listOf(
+        "Mukta" to "690802.084",
+        "Pendruan" to "690802.100",
+        "Sursi" to "690802.085",
+        "Binoundha" to "690802.099",
+    )
+
+    val context = LocalContext.current
+
+    val constructedUrl = "https://bhunaksha.cg.nic.in/22/plotreportCG.jsp?state=22&giscode=$selectedGiscode&plotno=${plotNumber.text}"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = stringResource(id = R.string.khasra_map),
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 20.dp)
+        )
+
+        DropdownMenuExample(
+            giscodeList = giscodeList,
+            selectedGiscode = selectedGiscode,
+            onGiscodeSelected = { selectedGiscode = it }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = plotNumber,
+            onValueChange = { plotNumber = it },
+            label = { Text(stringResource(id = R.string.enter_plot_no)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "${stringResource(id = R.string.constructed_url)}: $constructedUrl",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 20.dp)
+        )
+
+        Button(
+            onClick = {
+                if (plotNumber.text.isNotEmpty()) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(constructedUrl))
+                    context.startActivity(intent)  // Open URL in browser
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(id=R.string.open_url))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropdownMenuExample(
+    giscodeList: List<Pair<String, String>>,  // List of name-code pairs
+    selectedGiscode: String,
+    onGiscodeSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var selectedItem by remember { mutableStateOf(giscodeList.find { it.second == selectedGiscode }?.first ?: "") }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            value = selectedItem,
+            onValueChange = { /* No-op: disable user input */ },
+            label = { Text(stringResource(id = R.string.select_village)) },
+            readOnly = true,
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            giscodeList.forEach { (name, code) ->
+                DropdownMenuItem(
+                    text = { Text(text = name) },
+                    onClick = {
+                        selectedItem = name
+                        onGiscodeSelected(code)  // Use the code for the selected item
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 // -------------------------------------------------- End of Code --------------------------------------------------
