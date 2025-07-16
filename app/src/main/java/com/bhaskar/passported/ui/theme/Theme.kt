@@ -26,8 +26,8 @@ private val LightColorScheme = lightColorScheme(
     primary = Teal700,
     secondary = Teal200,
     tertiary = LightGreen500,
-    surface = Color(0xFFF2F2F2), // Lighter surface color
-    background = Color(0xFFF5F5F5), // Lighter background color
+    surface = Color(0xFFE86E6E), // Lighter surface color
+    background = Color(0xFF9F8686), // Lighter background color
     onSurface = Color.Black, // Text color on light surfaces
     onBackground = Color.Black, // Text color on light background
 )

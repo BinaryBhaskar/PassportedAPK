@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.material)
     implementation("com.github.bumptech.glide:glide:4.15.1")
     kapt("com.github.bumptech.glide:compiler:4.15.1")
+    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
 
     // Testing dependencies
     testImplementation(libs.junit)

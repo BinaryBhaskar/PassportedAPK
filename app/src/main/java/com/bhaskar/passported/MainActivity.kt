@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.bhaskar.passported
 
 import android.app.Activity
@@ -12,7 +10,13 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color.WHITE
+import android.graphics.Color.BLACK
+import android.graphics.Color.argb
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -21,7 +25,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,6 +60,8 @@ import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,6 +93,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.bhaskar.passported.ui.theme.PassportedTheme
+import com.google.android.material.color.DynamicColors
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.segmentation.Segmentation
+import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions
 import com.yalantis.ucrop.UCrop
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -101,6 +111,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.util.Locale
+import androidx.core.content.edit
+import androidx.core.net.toUri
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
 
 // -------------------------------------------------- Classes --------------------------------------------------
 // Language Manager
@@ -134,7 +148,7 @@ class LanguagePreferenceManager(context: Context) {
     }
 
     fun setLanguage(languageCode: String) {
-        sharedPreferences.edit().putString("selected_language", languageCode).apply()
+        sharedPreferences.edit { putString("selected_language", languageCode) }
     }
 
     fun getLanguage(): String {
@@ -172,21 +186,25 @@ class MainActivity : ComponentActivity() {
     private lateinit var languageManager: LanguagePreferenceManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Enable Material You (Dynamic Colors)
+        DynamicColors.applyToActivityIfAvailable(this)
+
         super.onCreate(savedInstanceState)
 
         languageManager = LanguagePreferenceManager.getInstance(this)
-
-        // Initialize the language based on the stored preference
-        val initialLanguage = languageManager.getLanguage() // Fetch initial language from preferences
-        setAppLocale(initialLanguage) // Set the locale based on initial language
+        val initialLanguage = languageManager.getLanguage()
+        setAppLocale(initialLanguage)
 
         setContent {
-            window.statusBarColor = colorScheme.background.toArgb()
-            MainScreen(currentLanguage = initialLanguage) { newLanguage ->
-                // Update the app's language preference
-                if (newLanguage != initialLanguage) {
-                    languageManager.setLanguage(newLanguage)
-                    setAppLocale(newLanguage) // Update the locale for the app
+            PassportedTheme {
+                // Set status bar color to match theme background
+                window.statusBarColor = colorScheme.background.toArgb()
+
+                MainScreen(currentLanguage = initialLanguage) { newLanguage ->
+                    if (newLanguage != initialLanguage) {
+                        languageManager.setLanguage(newLanguage)
+                        setAppLocale(newLanguage)
+                    }
                 }
             }
         }
@@ -234,7 +252,7 @@ fun MainScreen(currentLanguage: String, onLanguageSelected: (String) -> Unit) {
         Box(modifier = Modifier.weight(1f)) {
             NavHost(navController, startDestination = "passport_photo_mode") {
                 composable("passport_photo_mode") { PassportPhotoHomeScreen() }
-                composable("aadhar_card_mode") { AadharCardHomeScreen() }
+                composable("Aadhaar_card_mode") { AadhaarCardHomeScreen() }
                 composable("collage_mode") { CollageScreen() }
                 composable("khasra_map_mode") { KhasraMapScreen() }
                 composable("user_settings") {
@@ -279,7 +297,7 @@ fun AppNavigationBar(navController: NavHostController) {
         edgePadding = 0.dp,
         selectedTabIndex = when (currentRoute) {
             "passport_photo_mode" -> 0
-            "aadhar_card_mode" -> 1
+            "Aadhaar_card_mode" -> 1
             "collage_mode" -> 2
             "khasra_map_mode" -> 3
             "user_settings" -> 4
@@ -306,10 +324,10 @@ fun AppNavigationBar(navController: NavHostController) {
             }
         )
         Tab(
-            selected = currentRoute == "aadhar_card_mode",
+            selected = currentRoute == "Aadhaar_card_mode",
             onClick = {
-                if (currentRoute != "aadhar_card_mode") {
-                    navController.navigate("aadhar_card_mode") {
+                if (currentRoute != "Aadhaar_card_mode") {
+                    navController.navigate("Aadhaar_card_mode") {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
@@ -317,7 +335,7 @@ fun AppNavigationBar(navController: NavHostController) {
                 }
             },
             text = {
-                Text(stringResource(R.string.aadhar_card))
+                Text(stringResource(R.string.aadhaar_card))
             },
             icon = {
                 Icon(Icons.Default.Person, contentDescription = null)
@@ -443,7 +461,7 @@ fun getImageUri(context: Context, bitmap: Bitmap): Uri {
     val bytes = ByteArrayOutputStream()
     bitmap.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
     val path = MediaStore.Images.Media.insertImage(context.contentResolver, bitmap, "Shared Image", null)
-    return Uri.parse(path)
+    return path.toUri()
 }
 
 
@@ -452,10 +470,22 @@ fun getImageUri(context: Context, bitmap: Bitmap): Uri {
 @Composable
 fun PassportPhotoHomeScreen() {
     var selectedMode by remember { mutableStateOf<String?>(null) }
+    var isBackgroundRemoved by remember { mutableStateOf(true) }
+    var isBorderNeeded by remember { mutableStateOf(true) }
 
     when (selectedMode) {
-        "8xMode" -> LargePassportScreen { selectedMode = null }
-        "12xMode" -> SmallPassportScreen { selectedMode = null }
+        "8xMode" -> LargePassportScreen(
+            onBack = { selectedMode = null },
+            isBackgroundRemoved = isBackgroundRemoved,
+            isBorderNeeded = isBorderNeeded
+        )
+
+        "12xMode" -> SmallPassportScreen(
+            onBack = { selectedMode = null },
+            isBackgroundRemoved = isBackgroundRemoved,
+            isBorderNeeded = isBorderNeeded
+        )
+
         else -> {
             Column(
                 modifier = Modifier
@@ -472,7 +502,7 @@ fun PassportPhotoHomeScreen() {
                 ) {
 
                     Text(
-                        text = stringResource(id=R.string.select_passport_photo_size),
+                        text = stringResource(id = R.string.select_passport_photo_size),
                         style = MaterialTheme.typography.headlineMedium,
                         color = colorScheme.onBackground,
                         modifier = Modifier.padding(bottom = 20.dp, top = 16.dp)
@@ -480,14 +510,66 @@ fun PassportPhotoHomeScreen() {
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    Button(onClick = { selectedMode = "8xMode"}) {
-                        Text(stringResource(id=R.string.eight_large_photo))
+                    // 🌟 Switch 1: Remove Background
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Text(
+                            text = "Remove Background",
+                            color = colorScheme.onBackground,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = isBackgroundRemoved,
+                            onCheckedChange = { isBackgroundRemoved = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colorScheme.primary,
+                                uncheckedThumbColor = colorScheme.onSurfaceVariant,
+                                checkedTrackColor = colorScheme.primary.copy(alpha = 0.5f),
+                                uncheckedTrackColor = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                        )
+
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 🌟 Switch 2: Add Border
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(8.dp)
+                    ) {
+                        Text(
+                            text = "Add Border",
+                            color = colorScheme.onBackground,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = isBorderNeeded,
+                            onCheckedChange = { isBorderNeeded = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colorScheme.primary,
+                                uncheckedThumbColor = colorScheme.onSurfaceVariant,
+                                checkedTrackColor = colorScheme.primary.copy(alpha = 0.5f),
+                                uncheckedTrackColor = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                        )
+
+                    }
+
+                    Spacer(modifier = Modifier.height(30.dp))
+
+                    Button(onClick = { selectedMode = "8xMode" }) {
+                        Text(stringResource(id = R.string.eight_large_photo))
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    Button(onClick = {selectedMode = "12xMode"}) {
-                        Text(stringResource(id=R.string.twelve_small_passport))
+                    Button(onClick = { selectedMode = "12xMode" }) {
+                        Text(stringResource(id = R.string.twelve_small_passport))
                     }
                 }
             }
@@ -499,9 +581,9 @@ fun PassportPhotoHomeScreen() {
 fun saveImage(context: Context, bitmap: Bitmap) {
     val contentResolver: ContentResolver = context.contentResolver
     val values = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, "cropped_image.jpg")
+        put(MediaStore.Images.Media.DISPLAY_NAME, "Passport_${System.currentTimeMillis()}.jpg")
         put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Passported")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Passported/PassportPhotos")
     }
     val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
     uri?.let {
@@ -521,39 +603,147 @@ fun shareImage(context: Context, bitmap: Bitmap) {
     context.startActivity(Intent.createChooser(shareIntent, "Share Image via"))
 }
 
+// Background Remover Tool
+fun removeBackground(inputBitmap: Bitmap, onResult: (Bitmap) -> Unit, onError: (Exception) -> Unit) {
+    val options = SelfieSegmenterOptions.Builder()
+        .setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE)
+        .build()
+
+    val segmenter = Segmentation.getClient(options)
+    val image = InputImage.fromBitmap(inputBitmap, 0)
+
+    segmenter.process(image)
+        .addOnSuccessListener { result ->
+            val mask = result.buffer
+            val width = result.width
+            val height = result.height
+            val maskBitmap = createBitmap(width, height)
+
+            mask.rewind()
+            val pixels = IntArray(width * height)
+            for (i in pixels.indices) {
+                val confidence = mask.float
+                val alpha = if (confidence > 0.7f) 255 else 0
+                pixels[i] = argb(alpha,30,30,30)
+            }
+
+            maskBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+            val output = createBitmap(width, height)
+            val canvas = Canvas(output)
+            val paint = Paint()
+            canvas.drawBitmap(inputBitmap, 0f, 0f, null)
+            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+            canvas.drawBitmap(maskBitmap, 0f, 0f, paint)
+            paint.xfermode = null
+
+            onResult(output)
+        }
+        .addOnFailureListener { e ->
+            onError(e)
+        }
+}
+
+// Border Adding Tool
+fun addBorder(bitmap: Bitmap, borderSize: Int, borderColor: Int): Bitmap {
+    val borderedBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+    val canvas = Canvas(borderedBitmap)
+
+    val paint = Paint().apply {
+        color = borderColor
+        style = Paint.Style.STROKE
+        strokeWidth = borderSize.toFloat()
+        isAntiAlias = true
+    }
+
+    val halfBorder = borderSize / 2f
+    val rect = RectF(
+        halfBorder,
+        halfBorder,
+        bitmap.width - halfBorder,
+        bitmap.height - halfBorder
+    )
+
+    canvas.drawRect(rect, paint)
+
+    return borderedBitmap
+}
 
 // -------------------------------------------------- Large Passport Tools --------------------------------------------------
 // Large Passport Screen
 @Composable
-fun LargePassportScreen(onBack: () -> Unit) {
-    val bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var finalBitmap by remember { mutableStateOf<Bitmap?>(null) }
+fun LargePassportScreen(
+    onBack: () -> Unit,
+    isBackgroundRemoved: Boolean,
+    isBorderNeeded: Boolean
+) {
     val context = LocalContext.current
 
-    // Launcher to handle crop result
+    val bitmap = remember { mutableStateOf<Bitmap?>(null) }
+    val finalBitmap = remember { mutableStateOf<Bitmap?>(null) }
+
+    fun processFinalBitmap(original: Bitmap) {
+        var workingBitmap = original
+
+        // Optional background removal
+        if (isBackgroundRemoved) {
+            removeBackground(
+                inputBitmap = workingBitmap,
+                onResult = { noBgBitmap ->
+                    workingBitmap = noBgBitmap
+
+                    // Optional border
+                    if (isBorderNeeded) {
+                        workingBitmap = addBorder(workingBitmap, 8, BLACK)
+                    }
+
+                    val layoutBitmap = passportPageLayoutLarge(workingBitmap)
+                    bitmap.value = layoutBitmap
+                    finalBitmap.value = layoutBitmap
+                },
+                onError = { error ->
+                    Toast.makeText(context, "Background removal failed: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            )
+        } else {
+            // No background removal
+            if (isBorderNeeded) {
+                workingBitmap = addBorder(workingBitmap, 4, BLACK)
+            }
+
+            val layoutBitmap = passportPageLayoutLarge(workingBitmap)
+            bitmap.value = layoutBitmap
+            finalBitmap.value = layoutBitmap
+        }
+    }
+
     val cropImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.let { intent ->
                 UCrop.getOutput(intent)?.let { resultUri ->
-                    val croppedBitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, resultUri)
-                    finalBitmap = passportPageLayoutLarge(croppedBitmap)
+                    val source = ImageDecoder.createSource(context.contentResolver, resultUri)
+                    val croppedBitmap = ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        decoder.isMutableRequired = true
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                    bitmap.value = croppedBitmap
+                    processFinalBitmap(croppedBitmap)
                 }
             }
         }
     }
 
-    // Launcher to pick the image
-    val pickImageLauncher: ManagedActivityResultLauncher<String, Uri?> = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                cropImageLauncher.launch(createCropLargePassport(context, it))
-            }
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            cropImageLauncher.launch(createCropLargePassport(context, it))
         }
-    )
+    }
 
+    // UI layout (unchanged)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -562,29 +752,28 @@ fun LargePassportScreen(onBack: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Text(
-            text = stringResource(id=R.string.eight_large_photo),
+            text = stringResource(id = R.string.eight_large_photo),
             style = MaterialTheme.typography.headlineMedium,
             color = colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 20.dp)
-
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Button(onClick = {pickImageLauncher.launch("image/*") }) {
-            Text(stringResource(id=R.string.select_image))
+        Button(onClick = { pickImageLauncher.launch("image/*") }) {
+            Text(stringResource(id = R.string.select_image))
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(onClick = onBack) {
-            Text(stringResource(id=R.string.back))
+            Text(stringResource(id = R.string.back))
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-        finalBitmap?.let {
+
+        finalBitmap.value?.let {
             Image(
                 bitmap = it.asImageBitmap(),
                 contentDescription = "Final Grid Layout",
@@ -592,7 +781,7 @@ fun LargePassportScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .height(300.dp)
             )
-        } ?: bitmap?.let {
+        } ?: bitmap.value?.let {
             Image(
                 bitmap = it.asImageBitmap(),
                 contentDescription = "Cropped Image",
@@ -604,7 +793,7 @@ fun LargePassportScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        finalBitmap?.let { bitmap ->
+        finalBitmap.value?.let { bitmap ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -615,14 +804,14 @@ fun LargePassportScreen(onBack: () -> Unit) {
                     saveImage(context, bitmap)
                     Toast.makeText(context, "Image Saved to File", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text(stringResource(id=R.string.save_image))
+                    Text(stringResource(id = R.string.save_image))
                 }
 
                 Button(onClick = {
-                    context.run { shareImage(this,bitmap) }
+                    shareImage(context, bitmap)
                     Toast.makeText(context, "Sharing Image", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text(stringResource(id=R.string.share_image))
+                    Text(stringResource(id = R.string.share_image))
                 }
             }
         }
@@ -652,7 +841,7 @@ fun passportPageLayoutLarge(bitmap: Bitmap): Bitmap {
     val layoutHeight = 1772 // Page height in pixels (rotated height)
 
     // Create a new bitmap with the layout size and white background
-    val layoutBitmap = Bitmap.createBitmap(layoutWidth, layoutHeight, Bitmap.Config.ARGB_8888)
+    val layoutBitmap = createBitmap(layoutWidth, layoutHeight)
     val canvas = Canvas(layoutBitmap)
     canvas.drawColor(WHITE) // Set background color to white
 
@@ -699,35 +888,76 @@ fun passportPageLayoutLarge(bitmap: Bitmap): Bitmap {
 //-------------------------------------------------- Small Passport Tools --------------------------------------------------
 // Small Passport Screen
 @Composable
-fun SmallPassportScreen(onBack: () -> Unit) {
-    val bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var finalBitmap by remember { mutableStateOf<Bitmap?>(null) }
+fun SmallPassportScreen(
+    onBack: () -> Unit,
+    isBackgroundRemoved: Boolean,
+    isBorderNeeded: Boolean
+) {
     val context = LocalContext.current
 
-    // Launcher to handle crop result
+    val bitmap = remember { mutableStateOf<Bitmap?>(null) }
+    val finalBitmap = remember { mutableStateOf<Bitmap?>(null) }
+
+    fun processFinalBitmap(original: Bitmap) {
+        var workingBitmap = original
+
+        if (isBackgroundRemoved) {
+            removeBackground(
+                inputBitmap = workingBitmap,
+                onResult = { noBgBitmap ->
+                    workingBitmap = noBgBitmap
+
+                    if (isBorderNeeded) {
+                        workingBitmap = addBorder(workingBitmap, 4, Color.Black.toArgb())
+                    }
+
+                    val layoutBitmap = passportPageLayoutSmall(workingBitmap)
+                    bitmap.value = layoutBitmap
+                    finalBitmap.value = layoutBitmap
+                },
+                onError = { error ->
+                    Toast.makeText(context, "Background removal failed: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            )
+        } else {
+            if (isBorderNeeded) {
+                workingBitmap = addBorder(workingBitmap, 4, Color.Black.toArgb())
+            }
+
+            val layoutBitmap = passportPageLayoutSmall(workingBitmap)
+            bitmap.value = layoutBitmap
+            finalBitmap.value = layoutBitmap
+        }
+    }
+
+    // Image crop launcher
     val cropImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.let { intent ->
                 UCrop.getOutput(intent)?.let { resultUri ->
-                    val croppedBitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, resultUri)
-                    finalBitmap = passportPageLayoutSmall(croppedBitmap)
+                    val source = ImageDecoder.createSource(context.contentResolver, resultUri)
+                    val croppedBitmap = ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        decoder.isMutableRequired = true
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                    bitmap.value = croppedBitmap
+                    processFinalBitmap(croppedBitmap)
                 }
             }
         }
     }
 
-    // Launcher to pick the image
-    val pickImageLauncher: ManagedActivityResultLauncher<String, Uri?> = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                cropImageLauncher.launch(createCropSmallPassport(context, it))
-            }
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            cropImageLauncher.launch(createCropSmallPassport(context, it))
         }
-    )
+    }
 
+    // UI Layout
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -738,7 +968,7 @@ fun SmallPassportScreen(onBack: () -> Unit) {
     ) {
 
         Text(
-            text = "Choose 12x Passport Photo",
+            text = stringResource(id = R.string.twelve_small_passport),
             style = MaterialTheme.typography.headlineMedium,
             color = colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 20.dp)
@@ -746,18 +976,19 @@ fun SmallPassportScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Button(onClick = {pickImageLauncher.launch("image/*") }) {
-            Text(stringResource(id=R.string.select_image))
+        Button(onClick = { pickImageLauncher.launch("image/*") }) {
+            Text(stringResource(id = R.string.select_image))
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(onClick = onBack) {
-            Text(stringResource(id=R.string.back))
+            Text(stringResource(id = R.string.back))
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-        finalBitmap?.let {
+
+        finalBitmap.value?.let {
             Image(
                 bitmap = it.asImageBitmap(),
                 contentDescription = "Final Grid Layout",
@@ -765,7 +996,7 @@ fun SmallPassportScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .height(300.dp)
             )
-        } ?: bitmap?.let {
+        } ?: bitmap.value?.let {
             Image(
                 bitmap = it.asImageBitmap(),
                 contentDescription = "Cropped Image",
@@ -777,7 +1008,7 @@ fun SmallPassportScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        finalBitmap?.let { bitmap ->
+        finalBitmap.value?.let { bitmap ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -788,14 +1019,14 @@ fun SmallPassportScreen(onBack: () -> Unit) {
                     saveImage(context, bitmap)
                     Toast.makeText(context, "Image Saved to File", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text(stringResource(id=R.string.save_image))
+                    Text(stringResource(id = R.string.save_image))
                 }
 
                 Button(onClick = {
-                    context.run { shareImage(context = this, bitmap = bitmap) }
+                    shareImage(context, bitmap)
                     Toast.makeText(context, "Sharing Image", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text(stringResource(id=R.string.share_image))
+                    Text(stringResource(id = R.string.share_image))
                 }
             }
         }
@@ -825,7 +1056,7 @@ fun passportPageLayoutSmall(bitmap: Bitmap): Bitmap {
     val verticalMargin = (pageHeight - 4 * imageHeight) / 5
 
     // Create a new bitmap with the layout size and white background
-    val layoutBitmap = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+    val layoutBitmap = createBitmap(pageWidth, pageHeight)
     val canvas = Canvas(layoutBitmap)
     canvas.drawColor(WHITE) // Set background color to white
 
@@ -846,10 +1077,10 @@ fun passportPageLayoutSmall(bitmap: Bitmap): Bitmap {
 }
 
 
-// -------------------------------------------------- Aadhar Card Tools --------------------------------------------------
-// Aadhar Card Screen
+// -------------------------------------------------- Aadhaar Card Tools --------------------------------------------------
+// Aadhaar Card Screen
 @Composable
-fun AadharCardHomeScreen() {
+fun AadhaarCardHomeScreen() {
     var frontImageUri by remember { mutableStateOf<Uri?>(null) }
     var backImageUri by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
@@ -863,7 +1094,7 @@ fun AadharCardHomeScreen() {
             result.data?.let { intent ->
                 UCrop.getOutput(intent)?.let { resultUri ->
                     frontImageUri = resultUri
-                    createAadharFinalBitmap(context, frontImageUri, backImageUri)?.let {
+                    createAadhaarFinalBitmap(context, frontImageUri, backImageUri)?.let {
                         finalBitmap = it
                     }
                 }
@@ -878,7 +1109,7 @@ fun AadharCardHomeScreen() {
             result.data?.let { intent ->
                 UCrop.getOutput(intent)?.let { resultUri ->
                     backImageUri = resultUri
-                    createAadharFinalBitmap(context, frontImageUri, backImageUri)?.let {
+                    createAadhaarFinalBitmap(context, frontImageUri, backImageUri)?.let {
                         finalBitmap = it
                     }
                 }
@@ -891,7 +1122,7 @@ fun AadharCardHomeScreen() {
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
             uri?.let {
-                cropImageLauncherFront.launch(createCropAadharFront(context, it))
+                cropImageLauncherFront.launch(createCropAadhaarFront(context, it))
             }
         }
     )
@@ -900,7 +1131,7 @@ fun AadharCardHomeScreen() {
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
             uri?.let {
-                cropImageLauncherBack.launch(createCropAadharBack(context, it))
+                cropImageLauncherBack.launch(createCropAadhaarBack(context, it))
             }
         }
     )
@@ -915,7 +1146,7 @@ fun AadharCardHomeScreen() {
     ) {
 
         Text(
-            text = stringResource(id = R.string.select_aadhar_card_images),
+            text = stringResource(id = R.string.select_aadhaar_card_images),
             color = colorScheme.onBackground,
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 20.dp, top = 16.dp)
@@ -956,7 +1187,7 @@ fun AadharCardHomeScreen() {
             ) {
                 Button(onClick = {
                     finalBitmap?.let { bitmap ->
-                        saveAadharImage(context, bitmap)
+                        saveAadhaarImage(context, bitmap)
                         Toast.makeText(context, "Image Saved to File", Toast.LENGTH_SHORT).show()
                     }
                 }) {
@@ -965,7 +1196,7 @@ fun AadharCardHomeScreen() {
 
                 Button(onClick = {
                     finalBitmap?.let { bitmap ->
-                        shareAadharImage(context, bitmap)
+                        shareAadhaarImage(context, bitmap)
                         Toast.makeText(context, "Sharing Image", Toast.LENGTH_SHORT).show()
                     }
                 }) {
@@ -979,7 +1210,7 @@ fun AadharCardHomeScreen() {
             finalBitmap?.let {
                 Image(
                     bitmap = it.asImageBitmap(),
-                    contentDescription = "Final Aadhar Layout",
+                    contentDescription = "Final Aadhaar Layout",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)
@@ -990,7 +1221,7 @@ fun AadharCardHomeScreen() {
 }
 
 // Front Cropping Tool
-fun createCropAadharFront(context: Context, uri: Uri): Intent {
+fun createCropAadhaarFront(context: Context, uri: Uri): Intent {
     val destinationUri = Uri.fromFile(File(context.cacheDir, "cropped_${System.currentTimeMillis()}.jpg"))
     return UCrop.of(uri, destinationUri)
         .withAspectRatio(8.5f, 5.5f)
@@ -999,7 +1230,7 @@ fun createCropAadharFront(context: Context, uri: Uri): Intent {
 }
 
 // Back Cropping Tool
-fun createCropAadharBack(context: Context, uri: Uri): Intent {
+fun createCropAadhaarBack(context: Context, uri: Uri): Intent {
     val destinationUri = Uri.fromFile(File(context.cacheDir, "cropped_${System.currentTimeMillis()}.jpg"))
     return UCrop.of(uri, destinationUri)
         .withAspectRatio(8.5f, 5.5f)
@@ -1007,14 +1238,14 @@ fun createCropAadharBack(context: Context, uri: Uri): Intent {
         .getIntent(context)
 }
 
-// Aadhar A4 Layout Tool
-fun aadharPageLayout(frontBitmap: Bitmap, backBitmap: Bitmap): Bitmap {
-    // Page dimensions in pixels (21 cm width x 29.7 cm height, scaled down for Aadhar layout)
+// Aadhaar A4 Layout Tool
+fun aadhaarPageLayout(frontBitmap: Bitmap, backBitmap: Bitmap): Bitmap {
+    // Page dimensions in pixels (21 cm width x 29.7 cm height, scaled down for Aadhaar layout)
     val layoutWidth = 3150 // Width in pixels
     val layoutHeight = 4455 // Height in pixels
 
     // Create a bitmap to hold the final layout
-    val layoutBitmap = Bitmap.createBitmap(layoutWidth, layoutHeight, Bitmap.Config.ARGB_8888)
+    val layoutBitmap = createBitmap(layoutWidth, layoutHeight)
     val canvas = Canvas(layoutBitmap)
     canvas.drawColor(WHITE) // Set background color to white
 
@@ -1037,37 +1268,51 @@ fun aadharPageLayout(frontBitmap: Bitmap, backBitmap: Bitmap): Bitmap {
     return layoutBitmap
 }
 
-// Aadhar Finalizing Tool
-fun createAadharFinalBitmap(context: Context, frontUri: Uri?, backUri: Uri?): Bitmap? {
+// Aadhaar Finalizing Tool
+fun createAadhaarFinalBitmap(context: Context, frontUri: Uri?, backUri: Uri?): Bitmap? {
     return if (frontUri != null && backUri != null) {
-        val frontBitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, frontUri)
-        val backBitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, backUri)
-        aadharPageLayout(frontBitmap, backBitmap)
+        val frontSource = ImageDecoder.createSource(context.contentResolver, frontUri)
+        val frontBitmap = ImageDecoder.decodeBitmap(frontSource) { decoder, _, _ ->
+            decoder.isMutableRequired = true
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+
+        val backSource = ImageDecoder.createSource(context.contentResolver, backUri)
+        val backBitmap = ImageDecoder.decodeBitmap(backSource) { decoder, _, _ ->
+            decoder.isMutableRequired = true
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+        aadhaarPageLayout(frontBitmap, backBitmap)
     } else {
         null
     }
 }
 
 // Image Saving Tool
-fun saveAadharImage(context: Context, combinedBitmap: Bitmap) {
-    val fileName = "Aadhar_${System.currentTimeMillis()}.jpg"
-    val directory = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "AadharImages")
-
-    if (!directory.exists()) {
-        directory.mkdirs()
+fun saveAadhaarImage(context: Context, combinedBitmap: Bitmap) {
+    val fileName = "Aadhaar_${System.currentTimeMillis()}.jpg"
+    val directory = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "AadhaarImages")
+    val contentResolver: ContentResolver = context.contentResolver
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "Aadhaar_${System.currentTimeMillis()}.jpg")
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Passported/AadhaarPhotos")
     }
+    val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
 
     val file = File(directory, fileName)
 
     try {
-        val outputStream = FileOutputStream(file)
-        combinedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        outputStream.close()
+        uri?.let {
+            val outputStream: OutputStream? = contentResolver.openOutputStream(it)
+            outputStream?.let { it1 -> combinedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, it1) }
+            outputStream?.close()
+        }
 
         // Notify the gallery about the new file so it is immediately available to the user
         MediaScannerConnection.scanFile(context, arrayOf(file.toString()), null, null)
 
-        Toast.makeText(context, "Image saved to ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Image saved to Pictures/Passported/AadhaarPhotos", Toast.LENGTH_LONG).show()
     } catch (e: IOException) {
         e.printStackTrace()
         Toast.makeText(context, "Failed to save image", Toast.LENGTH_SHORT).show()
@@ -1075,8 +1320,8 @@ fun saveAadharImage(context: Context, combinedBitmap: Bitmap) {
 }
 
 // Image Sharing Tool
-fun shareAadharImage(context: Context, combinedBitmap: Bitmap) {
-    val fileName = "Aadhar_${System.currentTimeMillis()}.jpg"
+fun shareAadhaarImage(context: Context, combinedBitmap: Bitmap) {
+    val fileName = "Aadhaar_${System.currentTimeMillis()}.jpg"
     val directory = File(context.cacheDir, "images")
     val file = File(directory, fileName)
 
@@ -1261,7 +1506,7 @@ fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitm
     val a4Width = 2480 // Width in pixels for A4 (300 DPI)
     val a4Height = 3508 // Height in pixels for A4 (300 DPI)
 
-    val collageBitmap = Bitmap.createBitmap(a4Width, a4Height, Bitmap.Config.ARGB_8888)
+    val collageBitmap = createBitmap(a4Width, a4Height)
     val canvas = Canvas(collageBitmap)
     canvas.drawColor(WHITE) // Set background color
 
@@ -1286,7 +1531,7 @@ fun generateCollageBitmap(images: List<Bitmap>, scaleFactors: List<Float>): Bitm
         }
 
         // Draw the image on the canvas
-        val resizedImage = Bitmap.createScaledBitmap(image, scaledWidth, scaledHeight, true)
+        val resizedImage = image.scale(scaledWidth, scaledHeight)
         canvas.drawBitmap(resizedImage, currentX, currentY, null)
 
         // Update currentX and rowHeight for the next image
@@ -1325,7 +1570,7 @@ fun KhasraMapScreen() {
         Text(
             text = stringResource(id = R.string.khasra_map),
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
@@ -1351,14 +1596,14 @@ fun KhasraMapScreen() {
         Text(
             text = "${stringResource(id = R.string.constructed_url)}: $constructedUrl",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = colorScheme.primary,
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
         Button(
             onClick = {
                 if (plotNumber.text.isNotEmpty()) {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(constructedUrl))
+                    val intent = Intent(Intent.ACTION_VIEW, constructedUrl.toUri())
                     context.startActivity(intent)  // Open URL in browser
                 }
             },
